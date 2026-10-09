@@ -1,0 +1,16 @@
+services:
+  backend:
+    build: ./backend
+    env_file: .env
+    ports: ["8000:8000"]
+    volumes:
+      - chroma:/app/job_postings_db
+      - hf_cache:/root/.cache/huggingface
+  frontend:
+    build: ./frontend
+    ports: ["3000:3000"]
+    depends_on: [backend]
+
+volumes:
+  chroma:
+  hf_cache:
