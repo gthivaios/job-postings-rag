@@ -1,5 +1,6 @@
 import math
 
+
 def retrieved_job_ids(retrieved_docs: list) -> list[str]:
     """
     Turn retrieved chunks into a ranked list of unique job ids.

@@ -1,21 +1,16 @@
-import sys
-from typing import Optional
-
-from pydantic import BaseModel, Field
-from litellm import completion
-from dotenv import load_dotenv
-
-from evaluation.test import TestQuestion, load_tests
-from evaluation.metrics import (
-    calculate_mrr,
-    calculate_ndcg, 
-    retrieved_job_ids
-)
-from app.rag.query import answer_question, fetch_context
 import argparse
 import json
-from datetime import date
+import sys
+from datetime import UTC, datetime
 from pathlib import Path
+
+from dotenv import load_dotenv
+from litellm import completion
+from pydantic import BaseModel, Field
+
+from app.rag.query import answer_question, fetch_context
+from evaluation.metrics import calculate_mrr, calculate_ndcg, retrieved_job_ids
+from evaluation.test import TestQuestion, load_tests
 
 REPORT_FILE = Path(__file__).parent / "report.json"
 
@@ -52,7 +47,7 @@ class AnswerEval(BaseModel):
         description="How relevant is the answer to the specific question asked? 1 (very poor - off-topic) to 5 (ideal - directly addresses question and gives no additional information). Only answer 5 if the answer is completely relevant to the question and gives no additional information."
     )
 
-def score_retrieval(test: TestQuestion, retrieved_docs: list, k: int = 10) -> Optional[RetrievalEval]:
+def score_retrieval(test: TestQuestion, retrieved_docs: list, k: int = 10) -> RetrievalEval | None:
     """Score already-retrieved chunks, so a full run needs only one RAG call per test."""
     relevant = set(test.relevant_job_ids)
     if not relevant:
@@ -68,7 +63,7 @@ def score_retrieval(test: TestQuestion, retrieved_docs: list, k: int = 10) -> Op
     )
 
 
-def mean(values: list) -> Optional[float]:
+def mean(values: list) -> float | None:
     values = [v for v in values if v is not None]
     return round(sum(values) / len(values), 3) if values else None
 
@@ -94,7 +89,7 @@ def run_all(output: Path = REPORT_FILE) -> dict:
 
     metrics = ["mrr", "ndcg", "coverage", "accuracy", "completeness", "relevance"]
     report = {
-        "date": date.today().isoformat(),
+        "date": datetime.now(tz=UTC).date().isoformat(),
         "judge_model": MODEL,
         "tests": len(results),
         "summary": {m: mean([r[m] for r in results]) for m in metrics},
@@ -103,7 +98,7 @@ def run_all(output: Path = REPORT_FILE) -> dict:
     output.write_text(json.dumps(report, indent=2, ensure_ascii=False), encoding="utf-8")
     return report
 
-def evaluate_retrieval(test: TestQuestion, k: int = 10) -> Optional[RetrievalEval]:
+def evaluate_retrieval(test: TestQuestion, k: int = 10) -> RetrievalEval | None:
     """
     Evaluate retrieval performance for a test question.
 

@@ -1,9 +1,9 @@
-import os
 import json
-from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
+import os
 from pathlib import Path
-from fastapi import HTTPException
+
+from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 
 REPORT_FILE = Path(__file__).resolve().parents[1] / "evaluation" / "report.json"
 from app.rag.query import answer_question

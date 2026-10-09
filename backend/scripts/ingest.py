@@ -8,12 +8,14 @@ Run from the backend/ folder:
 import argparse
 import json
 import os
+from itertools import pairwise
 from pathlib import Path
-from dotenv import load_dotenv
+
 from chromadb import PersistentClient
-from transformers import AutoTokenizer
+from dotenv import load_dotenv
 from langchain_huggingface import HuggingFaceEmbeddings
 from tqdm import tqdm
+from transformers import AutoTokenizer
 
 load_dotenv(override=True)
 
@@ -84,7 +86,7 @@ def split_text(text: str, max_tokens: int, overlap: int) -> list[str]:
 
         if overlap > 0 and len(chunks) > 1:
             overlapped = [chunks[0]]
-            for prev, cur in zip(chunks, chunks[1:]):
+            for prev, cur in pairwise(chunks):
                 prev_ids = tokenizer.encode(prev, add_special_tokens=False)
                 tail = tokenizer.decode(prev_ids[-overlap:])
                 overlapped.append(tail + " " + cur)

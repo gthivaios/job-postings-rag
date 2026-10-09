@@ -1,12 +1,12 @@
-from dotenv import load_dotenv
+import os
+from pathlib import Path
+
 from chromadb import PersistentClient
+from dotenv import load_dotenv
+from langchain_huggingface import HuggingFaceEmbeddings
 from litellm import completion
 from pydantic import BaseModel, Field
-from pathlib import Path
 from tenacity import retry, wait_exponential
-from langchain_huggingface import HuggingFaceEmbeddings
-import os
-
 
 load_dotenv(override=True)
 
@@ -129,8 +129,9 @@ def make_rag_messages(question, history, chunks):
 
 
 @retry(wait=wait)
-def rewrite_query(question, history=[]):
+def rewrite_query(question, history=None):
     """Rewrite the user's question to be a more specific question that is more likely to surface relevant content in the job postings database."""
+    history = history or []
     message = f"""
 You are in a conversation with a user, answering questions about a database of
 European job postings (job titles, descriptions, requirements, companies,
@@ -193,10 +194,11 @@ def fetch_context(original_question):
 
 
 @retry(wait=wait)
-def answer_question(question: str, history: list[dict] = []) -> tuple[str, list]:
+def answer_question(question: str, history: list[dict] | None = None) -> tuple[str, list]:
     """
     Answer a question using RAG and return the answer and the retrieved context
     """
+    history = history or []
     chunks = fetch_context(question)
     messages = make_rag_messages(question, history, chunks)
     response = completion(model=MODEL, messages=messages)
