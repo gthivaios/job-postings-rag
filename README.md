@@ -29,7 +29,7 @@ flowchart LR
 Requirements: Docker Desktop and an [OpenRouter](https://openrouter.ai) API key.
 
 ```bash
-git clone https://github.com/<your-username>/job-postings-rag.git
+git clone https://github.com/gthivaios/job-postings-rag.git
 cd job-postings-rag
 cp .env.example .env          # Windows PowerShell: Copy-Item .env.example .env
 # open .env and set OPENROUTER_API_KEY
