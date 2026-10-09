@@ -87,12 +87,12 @@ Results are shown at http://localhost:3000/eval.
 
 | Metric | Score |
 | --- | --- |
-| MRR | _to fill from report.json_ |
-| nDCG | _to fill_ |
-| Coverage (%) | _to fill_ |
-| Accuracy (1-5) | _to fill_ |
-| Completeness (1-5) | _to fill_ |
-| Relevance (1-5) | _to fill_ |
+| MRR | 0.90 |
+| nDCG | 0.86 |
+| Coverage (%) | 85.61 |
+| Accuracy (1-5) | 4.70 |
+| Completeness (1-5) | 4.55 |
+| Relevance (1-5) | 4.05 |
 
 ## Project structure
 
