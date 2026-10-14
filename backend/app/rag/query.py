@@ -176,16 +176,21 @@ def fetch_context_unranked(question, where=None):
     return chunks
 
 
-def fetch_context(original_question):
-    # detect a country mention up front, before rewriting -- the rewrite step
-    # may compress the question in a way that drops the location, so we pull
-    # it from the original wording
-    country = extract_country_filter(original_question)
+def fetch_context(original_question, history=None):
+    rewritten_question = rewrite_query(original_question, history)
+
+    # look for a country in the original wording first -- the rewrite step may
+    # compress the question in a way that drops the location. If there is none,
+    # fall back to the rewritten query: it has seen the history, so a follow-up
+    # like "more jobs in that country?" resolves to the country named earlier,
+    # while a follow-up that changes topic doesn't keep a stale filter.
+    country = extract_country_filter(original_question) or extract_country_filter(
+        rewritten_question
+    )
     where = {"country": country} if country else None
     if country:
         print(f"Filtering results to country: {country}")
 
-    rewritten_question = rewrite_query(original_question)
     chunks1 = fetch_context_unranked(original_question, where=where)
     chunks2 = fetch_context_unranked(rewritten_question, where=where)
     chunks = merge_chunks(chunks1, chunks2)
@@ -199,7 +204,7 @@ def answer_question(question: str, history: list[dict] | None = None) -> tuple[s
     Answer a question using RAG and return the answer and the retrieved context
     """
     history = history or []
-    chunks = fetch_context(question)
+    chunks = fetch_context(question, history)
     messages = make_rag_messages(question, history, chunks)
     response = completion(model=MODEL, messages=messages)
     return response.choices[0].message.content, chunks
