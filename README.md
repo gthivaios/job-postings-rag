@@ -19,10 +19,36 @@ flowchart LR
     RR --> A[Answer + sources]
 ```
 
-1. **Ingestion:** each posting is split into chunks of about 330 tokens (40-token overlap), prefixed with title, company and location, embedded with `all-mpnet-base-v2` and stored in ChromaDB.
-2. **Retrieval:** the question is searched as written and as an LLM-rewritten query. If it names a country, results are filtered to that country.
-3. **Reranking:** an LLM reorders the merged chunks and the top 10 are kept.
-4. **Answer:** the LLM answers from those chunks, and the API returns the answer with the source postings.
+All LLM calls go through LiteLLM to `openai/gpt-oss-120b` on OpenRouter (`MODEL` in `backend/app/rag/query.py`) and are retried with exponential backoff (10 s up to 240 s) if they fail.
+
+### 1. Ingestion (`backend/scripts/ingest.py`)
+
+Run once, before the API starts, to build the vector database.
+
+- **Load:** reads `backend/data/documents.jsonl`, one posting per line with an `id`, the posting `text` and `metadata` (`job_id`, `portal`, `country`, `company`, `location`, `date`).
+- **Clean metadata:** ChromaDB only accepts strings, numbers and booleans, so missing values become `""` and anything else is converted to a string.
+- **Chunk:** `all-mpnet-base-v2` silently truncates input past 384 tokens, so each posting is split into chunks of at most 330 tokens. The splitter tries paragraph breaks first, then line breaks, sentences and words, and only cuts on raw tokens as a last resort. Consecutive chunks overlap by 40 tokens so content on a boundary is not lost.
+- **Prefix:** every chunk starts with `Title: …`, `Company: …` and `Location: …`, so a chunk from the middle of a posting still says which job it belongs to. The prefix is counted against the 330-token budget.
+- **Embed and store:** chunks are embedded with `sentence-transformers/all-mpnet-base-v2` and written to the `docs` collection in ChromaDB in batches of 500. Each chunk is stored with id `<doc_id>_chunk<n>` and keeps the posting metadata plus `doc_id`, `chunk_index`, `chunk_count` and `token_count`.
+
+If the collection already has data the script leaves it as is; use `--rebuild` after changing the data or the chunking settings. The database path, collection name and data file can be changed with `CHROMA_PATH`, `CHROMA_COLLECTION` and `DOCUMENTS_PATH`.
+
+### 2. Retrieval (`fetch_context` in `backend/app/rag/query.py`)
+
+- **Country filter:** at startup the API reads every country in the collection. If the question mentions one of them (case-insensitive), the search is restricted to that country with a ChromaDB `where` filter. The original question is checked first, because the rewrite below may drop the country. If it names none, the rewritten query is checked instead, so a follow-up such as "more jobs in that country?" keeps the country from earlier in the conversation.
+- **Query rewrite:** the LLM turns the question, together with the conversation so far, into a short search query focused on job title, skills, location, industry and seniority, without the conversational wording. This lets a follow-up such as "what about in Athens?" become a complete search query.
+- **Two searches:** the original question and the rewritten query are each embedded with the same model and searched in ChromaDB, returning the 20 nearest chunks each.
+- **Merge:** the two result lists are combined and duplicate chunks removed, giving up to 40 candidates.
+
+### 3. Reranking (`rerank` in `backend/app/rag/query.py`)
+
+Vector similarity alone often ranks loosely related postings highly, so the candidates are passed to the LLM together with the original question. It returns all the chunk ids ordered from most to least relevant, as structured output validated against a Pydantic model (`RankOrder`). The top 10 chunks are kept.
+
+### 4. Answer (`answer_question` in `backend/app/rag/query.py`)
+
+- **Prompt:** the 10 chunks are put into the system prompt, each labelled with its job id, company and location. The prompt tells the model to answer only from these excerpts, to say when it does not know, not to invent details such as salary, benefits or deadlines, and to name the job title and company when it refers to a posting.
+- **Conversation:** the previous messages sent in the request's `history` (up to 20) are included, so follow-up questions work.
+- **Response:** `POST /chat` returns the answer and a `sources` list with the job id, portal, company, location, country, date and text of each chunk used. The chat page lists these sources.
 
 ## Quick start (Docker)
 
